@@ -1,4 +1,4 @@
-package me.junbin.commons.converter.custom.jpa;
+package me.junbin.commons.converter.api.jpa;
 
 import javax.persistence.AttributeConverter;
 import java.lang.reflect.ParameterizedType;

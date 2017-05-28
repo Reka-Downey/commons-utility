@@ -1,4 +1,4 @@
-package me.junbin.commons.converter.custom.mybatis;
+package me.junbin.commons.converter.api.mybatis;
 
 /**
  * @author : Zhong Junbin

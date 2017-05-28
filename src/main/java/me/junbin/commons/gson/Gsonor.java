@@ -1,22 +1,12 @@
 package me.junbin.commons.gson;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
-import me.junbin.commons.converter.gson.LocalDateTimeTypeAdapter;
-import me.junbin.commons.converter.gson.LocalDateTypeAdapter;
-import me.junbin.commons.converter.gson.LocalTimeTypeAdapter;
-import me.junbin.commons.util.Jsr310Utils;
 
 import java.io.Reader;
 import java.lang.reflect.Type;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-
-import static me.junbin.commons.gson.strategy.GsonStrategies.IGNORE_FILED_EQUALS_PASSWORD;
 
 /**
  * @author : Zhong Junbin
@@ -26,49 +16,23 @@ import static me.junbin.commons.gson.strategy.GsonStrategies.IGNORE_FILED_EQUALS
  */
 public enum Gsonor implements GsonUtils {
 
-    SIMPLE(new GsonBuilder()
-            .serializeNulls()
-            .registerTypeAdapter(LocalTime.class,
-                    new LocalTimeTypeAdapter(Jsr310Utils.colon_HHmmss))
-            .registerTypeAdapter(LocalDate.class,
-                    new LocalDateTypeAdapter(Jsr310Utils.hyphen_yyyyMMdd))
-            .registerTypeAdapter(LocalDateTime.class,
-                    new LocalDateTimeTypeAdapter(Jsr310Utils.hyphen_yyyyMMddHHmmss))
+    SIMPLE(JSR_310_BUILDER
             .create()),
 
-    PRETTY(new GsonBuilder()
+    PRETTY(JSR_310_BUILDER
+            .setPrettyPrinting()
+            .create()),
+
+    SN_SIMPLE(JSR_310_BUILDER
+            .serializeNulls()
+            .create()),
+
+    SN_PRETTY(JSR_310_BUILDER
             .serializeNulls()
             .setPrettyPrinting()
-            .registerTypeAdapter(LocalTime.class,
-                    new LocalTimeTypeAdapter(Jsr310Utils.colon_HHmmss))
-            .registerTypeAdapter(LocalDate.class,
-                    new LocalDateTypeAdapter(Jsr310Utils.hyphen_yyyyMMdd))
-            .registerTypeAdapter(LocalDateTime.class,
-                    new LocalDateTimeTypeAdapter(Jsr310Utils.hyphen_yyyyMMddHHmmss))
             .create()),
 
-    EXCLUDE_PWD_FIELD_SIMPLE(new GsonBuilder()
-            .serializeNulls()
-            .setExclusionStrategies(IGNORE_FILED_EQUALS_PASSWORD)
-            .registerTypeAdapter(LocalTime.class,
-                    new LocalTimeTypeAdapter(Jsr310Utils.colon_HHmmss))
-            .registerTypeAdapter(LocalDate.class,
-                    new LocalDateTypeAdapter(Jsr310Utils.hyphen_yyyyMMdd))
-            .registerTypeAdapter(LocalDateTime.class,
-                    new LocalDateTimeTypeAdapter(Jsr310Utils.hyphen_yyyyMMddHHmmss))
-            .create()),
-
-    EXCLUDE_PWD_FIELD_PRETTY(new GsonBuilder()
-            .serializeNulls()
-            .setPrettyPrinting()
-            .setExclusionStrategies(IGNORE_FILED_EQUALS_PASSWORD)
-            .registerTypeAdapter(LocalTime.class,
-                    new LocalTimeTypeAdapter(Jsr310Utils.colon_HHmmss))
-            .registerTypeAdapter(LocalDate.class,
-                    new LocalDateTypeAdapter(Jsr310Utils.hyphen_yyyyMMdd))
-            .registerTypeAdapter(LocalDateTime.class,
-                    new LocalDateTimeTypeAdapter(Jsr310Utils.hyphen_yyyyMMddHHmmss))
-            .create());
+    ;
 
     private final Gson gson;
 

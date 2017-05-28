@@ -14,12 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.ConcurrentMap;
 
-import static me.junbin.commons.util.CollectionUtils.*;
 import static me.junbin.commons.ansi.ColorfulPrinter.green;
 import static me.junbin.commons.ansi.ColorfulPrinter.red;
+import static me.junbin.commons.util.CollectionUtils.*;
 
 /**
  * @author : Zhong Junbin
@@ -39,7 +38,7 @@ public final class Protostuffs {
     /**
      * 缓存 {@link Class} 与其对应的 {@link Schema}
      */
-    private static final Map<Class<?>, Schema<?>> schemaCache = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Class<?>, Schema<?>> schemaCache = new ConcurrentHashMap<>();
 
     /**
      * 用来反射生成对象
@@ -61,8 +60,6 @@ public final class Protostuffs {
     private Protostuffs() {
     }
 
-    private static final Lock lock = new ReentrantLock();
-
     /**
      * 从缓存中获取指定类的 {@link Schema}，如果缓存中不存在该类对应的 {@link Schema}，那么直接
      * 通过运行环境获取该类的 {@link Schema} 并存入缓存中。
@@ -72,21 +69,16 @@ public final class Protostuffs {
      * @return 指定类对应的 {@link Schema}
      */
     public static <T> Schema<T> getSchema(final Class<T> clazz) {
-        lock.lock();
-        try {
-            @SuppressWarnings("unchecked")
-            Schema<T> schema = (Schema<T>) schemaCache.get(clazz);
-            if (schema == null) {
-                schema = RuntimeSchema.getSchema(clazz);
-                if (schema != null) {
-                    green(String.format("缓存 {%s} 的 Schema.", clazz.getName()));
-                    schemaCache.put(clazz, schema);
-                }
+        @SuppressWarnings("unchecked")
+        Schema<T> schema = (Schema<T>) schemaCache.get(clazz);
+        if (schema == null) {
+            schema = RuntimeSchema.getSchema(clazz);
+            if (schema != null) {
+                green(String.format("缓存 {%s} 的 Schema.", clazz.getName()));
+                schemaCache.put(clazz, schema);
             }
-            return schema;
-        } finally {
-            lock.unlock();
         }
+        return schema;
     }
 
     /**

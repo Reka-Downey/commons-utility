@@ -4,7 +4,7 @@
 
     <groupId>me.junbin.commons</groupId>
     <artifactId>commons-utility</artifactId>
-    <version>1.1</version>
+    <version>1.2.1</version>
     <packaging>jar</packaging>
 
     <name>commons-utility</name>
@@ -80,6 +80,30 @@
             <optional>true</optional>
         </dependency>
         <!-- Spring MVC 格式转换器依赖 -->
+
+        <!-- Web 依赖 -->
+        <dependency>
+            <groupId>javax</groupId>
+            <artifactId>javaee-web-api</artifactId>
+            <version>7.0</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>jstl</artifactId>
+            <version>1.2</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>taglibs</groupId>
+            <artifactId>standard</artifactId>
+            <version>1.1.2</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency>
+        <!-- Web 依赖 -->
 
         <!-- HttpUtil 依赖 -->
         <dependency>
@@ -204,30 +228,6 @@
             <scope>test</scope>
         </dependency>
         <!-- 测试依赖 -->
-
-        <!-- Web 依赖 -->
-        <dependency>
-            <groupId>javax</groupId>
-            <artifactId>javaee-web-api</artifactId>
-            <version>7.0</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>javax.servlet</groupId>
-            <artifactId>jstl</artifactId>
-            <version>1.2</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>taglibs</groupId>
-            <artifactId>standard</artifactId>
-            <version>1.1.2</version>
-            <scope>provided</scope>
-            <optional>true</optional>
-        </dependency>
-        <!-- Web 依赖 -->
 
     </dependencies>
 

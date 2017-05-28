@@ -1,5 +1,6 @@
 package me.junbin.commons.http;
 
+import me.junbin.commons.charset.Charsets;
 import me.junbin.commons.util.Args;
 import org.apache.http.*;
 import org.apache.http.client.CredentialsProvider;
@@ -20,7 +21,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.util.List;
 
 /**
@@ -31,10 +32,12 @@ import java.util.List;
  */
 public class HttpUtil {
 
+    private static final int TIMEOUT = 10 * 60 * 1000;
+
     private static RequestConfig defaultConfig = RequestConfig.custom()
-                                                              .setSocketTimeout(5000)
-                                                              .setConnectTimeout(5000)
-                                                              .setConnectionRequestTimeout(5000)
+                                                              .setSocketTimeout(TIMEOUT)
+                                                              .setConnectTimeout(TIMEOUT)
+                                                              .setConnectionRequestTimeout(TIMEOUT)
                                                               .build();
 
     private static HttpProxy shadowsocksProxy = HttpProxy.custom()
@@ -51,6 +54,9 @@ public class HttpUtil {
                                                                       .setDefaultRequestConfig(RequestConfig.DEFAULT)
                                                                       .setRoutePlanner(shadowsocksProxy.getProxy())
                                                                       .build();
+
+    private static final Header JSON = new BasicHeader("Content-Type", "application/json; charset=UTF-8");
+    private static final Charset DEFAULT_CHARSET = Charsets.UTF8;
 
     public static RequestConfig getDefaultConfig() {
         return defaultConfig;
@@ -97,16 +103,6 @@ public class HttpUtil {
         }
     }
 
-    private static final Header JSON = new BasicHeader("Content-Type", "application/json; charset=UTF-8");
-
-    public static String execute(final CloseableHttpClient client, final HttpUriRequest request) throws IOException {
-        Args.notNull(client);
-        String responseBody;
-        try (CloseableHttpResponse response = client.execute(request)) {
-            responseBody = responseBody(response);
-        }
-        return responseBody;
-    }
 
     public static String doGetWithGzip(final String url) throws IOException {
         return doGetWithGzip(url, false);
@@ -186,14 +182,19 @@ public class HttpUtil {
     }
 
     public static String doGet(String url, List<NameValuePair> paramList, boolean usingProxy) throws IOException {
-        String params = URLEncodedUtils.format(paramList, StandardCharsets.UTF_8);
-        //String params = EntityUtils.toString(new UrlEncodedFormEntity(paramList, StandardCharsets.UTF_8));
+        return doGet(url, paramList, DEFAULT_CHARSET, usingProxy);
+    }
+
+    public static String doGet(String url, List<NameValuePair> paramList, Charset encodedCharset, boolean usingProxy) throws IOException {
+        String params = URLEncodedUtils.format(paramList, encodedCharset);
+        //String params = EntityUtils.toString(new UrlEncodedFormEntity(paramList, encodedCharset));
         if (usingProxy) {
             return proxyGet(url + '?' + params);
         } else {
             return doGet(url + '?' + params);
         }
     }
+
 
     /**
      * 　　执行表单 POST 请求并获取响应体的内容
@@ -211,8 +212,12 @@ public class HttpUtil {
     }
 
     public static String doFormPost(String url, List<NameValuePair> paramList, boolean usingProxy) throws IOException {
+        return doFormPost(url, paramList, DEFAULT_CHARSET, usingProxy);
+    }
+
+    public static String doFormPost(String url, List<NameValuePair> paramList, Charset encodedCharset, boolean usingProxy) throws IOException {
         HttpPost httpPost = new HttpPost(url);
-        httpPost.setEntity(new UrlEncodedFormEntity(paramList, StandardCharsets.UTF_8));
+        httpPost.setEntity(new UrlEncodedFormEntity(paramList, encodedCharset));
         if (usingProxy) {
             return execute(proxyClient, httpPost);
         } else {
@@ -252,10 +257,17 @@ public class HttpUtil {
     }
 
     public static String doPost(String url, String jsonBody, boolean usingProxy) throws IOException {
+        return doPost(url, jsonBody, DEFAULT_CHARSET, usingProxy);
+    }
+
+    public static String doPost(String url, String jsonBody, Charset encodedCharset, boolean usingProxy) throws IOException {
         HttpPost httpPost = new HttpPost(url);
-        //httpPost.addHeader("Content-Type", "application/json; charset=utf-8");
-        httpPost.addHeader(JSON);
-        httpPost.setEntity(new StringEntity(jsonBody, StandardCharsets.UTF_8));
+        if (encodedCharset == DEFAULT_CHARSET) {
+            httpPost.addHeader(JSON);
+        } else {
+            httpPost.addHeader(new BasicHeader("Content-Type", "application/json; charset=" + encodedCharset.name()));
+        }
+        httpPost.setEntity(new StringEntity(jsonBody, encodedCharset));
         if (usingProxy) {
             return execute(proxyClient, httpPost);
         } else {
@@ -286,6 +298,15 @@ public class HttpUtil {
         }
     }
 
+    public static String execute(final CloseableHttpClient client, final HttpUriRequest request) throws IOException {
+        Args.notNull(client);
+        String responseBody;
+        try (CloseableHttpResponse response = client.execute(request)) {
+            responseBody = responseBody(response);
+        }
+        return responseBody;
+    }
+
     /**
      * 　　判断响应是否正常，响应状态码大于等于 200 并且小于 300 即正常。
      *
@@ -304,6 +325,16 @@ public class HttpUtil {
      * @return 响应体
      */
     public static String responseBody(HttpResponse response) throws IOException {
+        return responseBody(response, DEFAULT_CHARSET);
+    }
+
+    /**
+     * 　　解析响应并提取其中响应体的内容，之后将响应体消费（关闭）掉。
+     *
+     * @param response 响应
+     * @return 响应体
+     */
+    public static String responseBody(HttpResponse response, Charset decodedCharset) throws IOException {
         String responseBody;
         if (!isReplyOk(response)) {
             StatusLine statusLine = response.getStatusLine();
@@ -311,7 +342,7 @@ public class HttpUtil {
         }
         HttpEntity responseEntity = response.getEntity();
         //responseEntity = new GzipDecompressingEntity(responseEntity);
-        responseBody = EntityUtils.toString(responseEntity, StandardCharsets.UTF_8);
+        responseBody = EntityUtils.toString(responseEntity, decodedCharset);
         EntityUtils.consume(responseEntity);
         return responseBody;
     }
@@ -329,6 +360,23 @@ public class HttpUtil {
     public static void closeHttpClientQuiet() {
         try {
             httpClient.close();
+        } catch (IOException ignore) {
+        }
+    }
+
+    /**
+     * 关闭 {@link #httpClient}
+     */
+    public static void closeProxyClient() throws IOException {
+        proxyClient.close();
+    }
+
+    /**
+     * 关闭 {@link #httpClient}，并对可能发生的异常置之不理。
+     */
+    public static void closeProxyClientQuiet() {
+        try {
+            proxyClient.close();
         } catch (IOException ignore) {
         }
     }

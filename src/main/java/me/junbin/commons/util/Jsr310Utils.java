@@ -9,8 +9,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.*;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @author : Zhong Junbin
@@ -31,7 +31,7 @@ public abstract class Jsr310Utils {
     public static final DateTimeFormatter slash_yyyyMMddHHmmss = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
     public static final DateTimeFormatter hyphen_yyyyMMdd = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     public static final DateTimeFormatter colon_HHmmss = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private static final Map<String, DateTimeFormatter> formatterCache = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, DateTimeFormatter> formatterCache = new ConcurrentHashMap<>();
 
     static {
         formatterCache.put("yyyyMMddHHmmssSSS", yyyyMMddHHmmssSSS);
@@ -200,6 +200,10 @@ public abstract class Jsr310Utils {
      */
     public static String format(final TemporalAccessor temporal, final String pattern) {
         return getFormatter(pattern).format(temporal);
+    }
+
+    public static String format(final Date temporal, final String pattern) {
+        return getFormatter(pattern).format(toZonedDateTime(temporal));
     }
 
     /**
@@ -726,47 +730,30 @@ public abstract class Jsr310Utils {
         return "刚刚";
     }
 
-    /**
-     * TODO 本方法的实现自我感觉效率低下，后期考虑区分时间与日期，之后通过秒和天计算时间差
-     * 　　获取过去的某个时间相对于当前的时间描述，由于不需要精确描述，因此当两个时间的时间差
-     * 小于秒级别时，以 “刚刚” 代替时间差
-     *
-     * @param ago 过去的某个时间
-     * @return 对过去时间的描述
-     */
-    public static String agoDescription(LocalDateTime ago) {
-        LocalDateTime now = LocalDateTime.now();
-        long period;
-        if ((period = decadesBetween(ago, now)) > 0) {
-            return period + "0年前";
+    public static <T> T parse(final String temporal, final TemporalQuery<T> query, final String firstPattern, String... moreCandidatePatterns) {
+        try {
+            return getFormatter(firstPattern).parse(temporal, query);
+        } catch (DateTimeException e) {
+            for (String pattern : moreCandidatePatterns) {
+                try {
+                    return getFormatter(pattern).parse(temporal, query);
+                } catch (DateTimeException ignored) {
+                }
+            }
+            throw new IllegalArgumentException(String.format("No pattern matches date string [%s]", temporal));
         }
-        if ((period = yearsBetween(ago, now)) > 0) {
-            return period + "年前";
-        }
-        if ((period = monthsBetween(ago, now)) > 0) {
-            return period + "月前";
-        }
-        if ((period = weeksBetween(ago, now)) > 0) {
-            return period + "周前";
-        }
-        if ((period = daysBetween(ago, now)) > 0) {
-            return period + "天前";
-        }
-/*
-        if (halfDaysBetween(ago, now) > 0) {
-            return "半天前";
-        }
-*/
-        if ((period = hoursBetween(ago, now)) > 0) {
-            return period + "小时前";
-        }
-        if ((period = minutesBetween(ago, now)) > 0) {
-            return period + "分钟前";
-        }
-        if ((period = secondsBetween(ago, now)) > 0) {
-            return period + "秒前";
-        }
-        return "刚刚";
+    }
+
+    public static LocalDateTime parseDateTime(final String temporal, final String pattern, String... moreCandidatePatterns) {
+        return parse(temporal, LocalDateTime::from, pattern, moreCandidatePatterns);
+    }
+
+    public static LocalDate parseDate(final String temporal, final String pattern, String... moreCandidatePatterns) {
+        return parse(temporal, LocalDate::from, pattern, moreCandidatePatterns);
+    }
+
+    public static LocalTime parseTime(final String temporal, final String pattern, String... moreCandidatePatterns) {
+        return parse(temporal, LocalTime::from, pattern, moreCandidatePatterns);
     }
 
 }

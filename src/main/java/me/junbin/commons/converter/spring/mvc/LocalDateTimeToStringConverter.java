@@ -19,7 +19,7 @@ public class LocalDateTimeToStringConverter implements Converter<LocalDateTime, 
 
     private final DateTimeFormatter formatter;
 
-    // 这里无法通过 xml 传入 DateTimeFormatter，因此它的执行顺序高于我们注册的 propertyEditor
+    // 这里无法通过 xml 传入 DateTimeFormatter，因为它的执行顺序高于我们注册的 propertyEditor
     public LocalDateTimeToStringConverter(String pattern) {
         this.formatter = DateTimeFormatter.ofPattern(pattern.trim());
     }

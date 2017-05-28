@@ -1,11 +1,16 @@
 package me.junbin.commons.gson;
 
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
+import me.junbin.commons.converter.Converters;
 
 import java.io.Reader;
 import java.lang.reflect.Type;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /**
  * @author : Zhong Junbin
@@ -14,6 +19,12 @@ import java.lang.reflect.Type;
  * @description :
  */
 public interface GsonUtils {
+
+    GsonBuilder JSR_310_BUILDER =
+            new GsonBuilder()
+                    .registerTypeAdapter(LocalTime.class, Converters.Gson.LOCAL_TIME)
+                    .registerTypeAdapter(LocalDate.class, Converters.Gson.LOCAL_DATE)
+                    .registerTypeAdapter(LocalDateTime.class, Converters.Gson.LOCAL_DATE_TIME);
 
     String toJson(Object source);
 

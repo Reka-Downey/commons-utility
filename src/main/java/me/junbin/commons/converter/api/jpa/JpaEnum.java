@@ -1,4 +1,4 @@
-package me.junbin.commons.converter.custom.jpa;
+package me.junbin.commons.converter.api.jpa;
 
 /**
  * @author : Zhong Junbin

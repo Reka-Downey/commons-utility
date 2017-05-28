@@ -1,7 +1,10 @@
-package me.junbin.commons.converter.custom.gson;
+package me.junbin.commons.converter.api.gson;
 
-import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 
+import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
@@ -11,7 +14,7 @@ import java.lang.reflect.Type;
  * @createDate : 2016-09-17 21:15
  * @description :
  */
-public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> implements GsonTypeAdapter<E> {
+public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> extends GsonTypeAdapter<E> {
 
     private final E e;
 
@@ -58,13 +61,21 @@ public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> implements Gso
     }
 
     @Override
-    public JsonElement serialize(E src, Type typeOfSrc, JsonSerializationContext context) {
-        return null == src ? null : new JsonPrimitive(src.serialize());
+    public void write(JsonWriter out, E value) throws IOException {
+        out.value(value == null ? null : value.serialize());
     }
 
     @Override
-    public E deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-        return null == json ? null : e.deserialize(json.getAsString());
+    public E read(JsonReader in) throws IOException {
+        if (in.hasNext()) {
+            JsonToken jsonToken = in.peek();
+            if (jsonToken == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+            return e.deserialize(in.nextString());
+        }
+        return null;
     }
 
 }

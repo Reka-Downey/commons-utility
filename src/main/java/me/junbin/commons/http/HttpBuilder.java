@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
  * @author : Zhong Junbin
  * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
  * @createDate : 2017/1/4 20:27
- * @description : Http 请求超时配置类，默认全部配置 10 分钟
+ * @description : Http 客户机创建类，默认超时 10 分钟，默认无代理
  */
 public class HttpBuilder {
 

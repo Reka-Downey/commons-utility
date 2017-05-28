@@ -1,4 +1,4 @@
-package me.junbin.commons.converter.custom.gson;
+package me.junbin.commons.converter.api.gson;
 
 /**
  * @author : Zhong Junbin

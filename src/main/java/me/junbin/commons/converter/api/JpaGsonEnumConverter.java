@@ -1,34 +1,36 @@
-package me.junbin.commons.converter.custom.gson.obj;
+package me.junbin.commons.converter.api;
+
 
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import me.junbin.commons.converter.custom.gson.GsonEnum;
+import me.junbin.commons.converter.api.gson.GsonTypeAdapter;
 
+import javax.persistence.AttributeConverter;
 import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 
 /**
  * @author : Zhong Junbin
- * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
- * @createDate : 2016-09-17 21:15
+ * @email : <a href="mailto:junbinzhong@linkcm.com">发送邮件</a>
+ * @createDate : 2017/5/28 15:47
  * @description :
  */
-public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> extends GsonTypeAdapter<E> {
+public class JpaGsonEnumConverter<E extends Enum<E> & JpaGsonEnum<E>>
+        extends GsonTypeAdapter<E> implements AttributeConverter<E, String> {
 
     private final E e;
 
     /**
-     * 此方法只能够由直接继承 {@link GsonEnumTypeAdapter} 的子类构造方法来调用。
+     * 此方法只能够由直接继承 {@link JpaGsonEnumConverter} 的子类构造方法来调用。
      * 通过反射来获取子类中声明的枚举泛型。
-     * 不建议使用此构造方法，子类应当在默认构造方法中使用 {@code super(GsonEnum)} 来执行实例构造
+     * 不建议使用此构造方法，子类应当在默认构造方法中使用 {@code super(JpaGsonEnum)} 来执行实例构造
      */
-    protected GsonEnumTypeAdapter() {
-        Class<? extends GsonEnumTypeAdapter> thisClazz = this.getClass();
-
-        if (thisClazz == GsonEnumTypeAdapter.class) {
-            throw new IllegalArgumentException("This constructor must only invokes by the subclass of GsonEnumTypeAdapter");
+    protected JpaGsonEnumConverter() {
+        Class<? extends JpaGsonEnumConverter> thisClazz = this.getClass();
+        if (thisClazz == JpaGsonEnumConverter.class) {
+            throw new IllegalArgumentException("This constructor must only invokes by the subclass of JpaGsonEnumConverter");
         }
 
         Type type = thisClazz.getGenericSuperclass();
@@ -57,13 +59,13 @@ public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> extends GsonTy
         this.e = (E) enum0;
     }
 
-    public GsonEnumTypeAdapter(E e) {
+    public JpaGsonEnumConverter(E e) {
         this.e = e;
     }
 
     @Override
     public void write(JsonWriter out, E value) throws IOException {
-        out.value(value == null ? null : value.serialize());
+        out.value(value == null ? null : value.freeze());
     }
 
     @Override
@@ -73,12 +75,20 @@ public class GsonEnumTypeAdapter<E extends Enum<E> & GsonEnum<E>> extends GsonTy
             if (jsonToken == JsonToken.NULL) {
                 in.nextNull();
                 return null;
-            } else {
-                return e.deserialize(in.nextString());
             }
+            return e.unfreeze(in.nextString());
         }
         return null;
     }
 
-}
+    @Override
+    public String convertToDatabaseColumn(E attribute) {
+        return attribute.freeze();
+    }
 
+    @Override
+    public E convertToEntityAttribute(String dbData) {
+        return e.unfreeze(dbData);
+    }
+
+}

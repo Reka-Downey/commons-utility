@@ -1,5 +1,6 @@
-package me.junbin.commons.converter.custom.mybatis;
+package me.junbin.commons.converter.api;
 
+import com.google.gson.*;
 import org.apache.ibatis.type.BaseTypeHandler;
 import org.apache.ibatis.type.JdbcType;
 
@@ -12,23 +13,24 @@ import java.sql.SQLException;
 
 /**
  * @author : Zhong Junbin
- * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
- * @createDate : 2017/2/12 19:44
+ * @email : <a href="mailto:junbinzhong@linkcm.com">发送邮件</a>
+ * @createDate : 2017/5/28 15:59
  * @description :
  */
-public class MyBatisEnumTypeHandler<E extends Enum<E> & MyBatisEnum<E>> extends BaseTypeHandler<E> {
+public class MyBatisGsonEnumConverter<E extends Enum<E> & JpaGsonEnum<E>>
+        extends BaseTypeHandler<E> implements JsonSerializer<E>, JsonDeserializer<E> {
 
     private final E e;
 
     /**
-     * 此方法只能够由直接继承 {@link MyBatisEnumTypeHandler} 的子类构造方法来调用。
+     * 此方法只能够由直接继承 {@link JpaGsonEnumConverter} 的子类构造方法来调用。
      * 通过反射来获取子类中声明的枚举泛型。
-     * 不建议使用此构造方法，子类应当在默认构造方法中使用 {@code super(MyBatisEnum)} 来执行实例构造
+     * 不建议使用此构造方法，子类应当在默认构造方法中使用 {@code super(JpaGsonEnum)} 来执行实例构造
      */
-    protected MyBatisEnumTypeHandler() {
-        Class<? extends MyBatisEnumTypeHandler> thisClazz = this.getClass();
-        if (thisClazz == MyBatisEnumTypeHandler.class) {
-            throw new IllegalArgumentException("This constructor must only invokes by the subclass of MyBatisEnumTypeHandler");
+    protected MyBatisGsonEnumConverter() {
+        Class<? extends MyBatisGsonEnumConverter> thisClazz = this.getClass();
+        if (thisClazz == MyBatisGsonEnumConverter.class) {
+            throw new IllegalArgumentException("This constructor must only invokes by the subclass of MyBatisGsonEnumConverter");
         }
 
         Type type = thisClazz.getGenericSuperclass();
@@ -57,13 +59,28 @@ public class MyBatisEnumTypeHandler<E extends Enum<E> & MyBatisEnum<E>> extends 
         this.e = (E) enum0;
     }
 
-    public MyBatisEnumTypeHandler(E e) {
+    public MyBatisGsonEnumConverter(E e) {
         this.e = e;
     }
 
     @Override
-    public void setNonNullParameter(PreparedStatement ps, int i, E parameter, JdbcType jdbcType) throws SQLException {
-        ps.setString(i, parameter.convertToDatabaseColumn());
+    public JsonElement serialize(E src, Type typeOfSrc, JsonSerializationContext context) {
+        return null == src ? null : new JsonPrimitive(src.freeze());
+    }
+
+    @Override
+    public E deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+            throws JsonParseException {
+        if (null == json || JsonNull.INSTANCE.equals(json)) {
+            return null;
+        }
+        return e.unfreeze(json.getAsString());
+    }
+
+    @Override
+    public void setNonNullParameter(PreparedStatement ps, int i, E parameter, JdbcType jdbcType)
+            throws SQLException {
+        ps.setString(i, parameter.freeze());
     }
 
     @Override
@@ -82,9 +99,7 @@ public class MyBatisEnumTypeHandler<E extends Enum<E> & MyBatisEnum<E>> extends 
     }
 
     private E transfer(String dbData) {
-        return dbData == null ?
-                null :
-                e.convertToEntityAttribute(dbData);
+        return dbData == null ? null : e.unfreeze(dbData);
     }
 
 }

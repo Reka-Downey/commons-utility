@@ -12,7 +12,7 @@ import org.apache.http.impl.conn.DefaultProxyRoutePlanner;
  * @author : Zhong Junbin
  * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
  * @createDate : 2017/1/24 20:39
- * @description :
+ * @description : http 代理配置类
  */
 public class HttpProxy {
 

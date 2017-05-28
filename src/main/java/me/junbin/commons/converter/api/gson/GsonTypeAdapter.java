@@ -1,4 +1,4 @@
-package me.junbin.commons.converter.custom.gson.obj;
+package me.junbin.commons.converter.api.gson;
 
 import com.google.gson.TypeAdapter;
 
@@ -9,4 +9,5 @@ import com.google.gson.TypeAdapter;
  * @description :
  */
 public abstract class GsonTypeAdapter<T> extends TypeAdapter<T> {
+
 }

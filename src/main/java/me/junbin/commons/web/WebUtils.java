@@ -8,11 +8,14 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.context.ContextLoader;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.context.support.WebApplicationContextUtils;
 
 import javax.servlet.*;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.File;
 import java.io.IOException;
@@ -31,7 +34,6 @@ import java.util.StringTokenizer;
  * Repository 层的调用都是由 Controller 层发起的。
  */
 public class WebUtils {
-
 
     /**
      * Standard Servlet spec context attribute that specifies a temporary
@@ -53,6 +55,32 @@ public class WebUtils {
 
     public static WebApplicationContext currentWebAppCtx(ServletContext servletContext) {
         return WebApplicationContextUtils.findWebApplicationContext(servletContext);
+    }
+
+    private static ServletRequestAttributes threadContext() {
+        return ServletRequestAttributes.class.cast(
+                RequestContextHolder.getRequestAttributes()
+        );
+    }
+
+    public static HttpServletRequest currentRequest() {
+        return threadContext().getRequest();
+    }
+
+    public static HttpServletResponse currentResponse() {
+        return threadContext().getResponse();
+    }
+
+    public static HttpSession currentSession() {
+        return currentRequest().getSession();
+    }
+
+    public static HttpSession currentSession(boolean autoCreate) {
+        return currentRequest().getSession(autoCreate);
+    }
+
+    public static String currentSessionId() {
+        return threadContext().getSessionId();
     }
 
     /**
@@ -114,75 +142,6 @@ public class WebUtils {
         WebApplicationContext webAppCtx = currentWebAppCtx();
         return null == webAppCtx ? null : webAppCtx.getServletContext();
     }
-
-/*
-    // 可能抛出 IllegalArgumentException
-    public static String getWebRootPath() {
-        return getWebRootPath(currentServletContext());
-    }
-
-    // 可能抛出 IllegalArgumentException
-    public static String getWebRootPath(ServletContext servletContext) {
-        Assert.notNull(servletContext, "ServletContext must not be null");
-        return servletContext.getRealPath("/");
-    }
-
-    // 可能为 null
-    public static String getRealPath(String webPath) {
-        return getRealPath(currentServletContext(), webPath);
-    }
-
-    // 可能为 null
-    public static String getRealPath(ServletContext servletContext, String webPath) {
-        Assert.notNull(servletContext, "ServletContext must not be null");
-        if (!webPath.startsWith("/")) {
-            webPath = "/" + webPath;
-        }
-        return servletContext.getRealPath(webPath);
-    }
-
-    // 可能抛出 IllegalArgumentException
-    public static String getRealPath(String webPath, boolean createIfAbsent) throws IOException {
-        return getRealPath(currentServletContext(), webPath, createIfAbsent);
-    }
-
-    // 可能抛出 IllegalArgumentException
-    public static String getRealPath(ServletContext servletContext, String webPath, boolean createIfAbsent) throws IOException {
-        String path = getRealPath(servletContext, webPath);
-        if (path == null) {
-            if (createIfAbsent) {
-                Path realPath = Files.createDirectories(Paths.get(getWebRootPath(servletContext), webPath).normalize());
-                return realPath.toString();
-            }
-        }
-        return null;
-    }
-
-    // 可能为 null
-    public static String getRealFile(String webFilePath) {
-        return getRealFile(currentServletContext(), webFilePath);
-    }
-
-    // 可能为 null
-    public static String getRealFile(ServletContext servletContext, String webFilePath) {
-        return getRealPath(servletContext, webFilePath);
-    }
-
-    public static String getRealFile(String webFilePath, boolean createIfAbsent) throws IOException {
-        return getRealFile(currentServletContext(), webFilePath, createIfAbsent);
-    }
-
-    public static String getRealFile(ServletContext servletContext, String webFilePath, boolean createIfAbsent) throws IOException {
-        String filePath = getRealFile(servletContext, webFilePath);
-        if (null == filePath) {
-            if (createIfAbsent) {
-                Path path = Files.createFile(Paths.get(getWebRootPath(servletContext), webFilePath).normalize());
-                return path.toString();
-            }
-        }
-        return null;
-    }
-*/
 
     /**
      * 获取当前线程所属应用的 webapp 的根目录，此方法需要当前线程在 Spring Web 环境下才能生效。
@@ -340,7 +299,6 @@ public class WebUtils {
         return null;
     }
 
-
     /**
      * 获取指定类型的 {@code ServletRequest} 对象，如果有必要的话，将会对 {@code ServletRequest} 对象执行解包操作
      *
@@ -380,7 +338,6 @@ public class WebUtils {
         }
         return null;
     }
-
 
     /**
      * 检索给定名称的第一个 Cookie ，注意这些 Cookie 可能在不同的路径或者域下
@@ -518,7 +475,7 @@ public class WebUtils {
     }
 
     /**
-     * 解析给定矩形变量字符串。
+     * 解析给定矩阵参数，常用于 RESTful 风格的请求处理。
      * 矩形变量字符串实例：{@code "q1=a;q1=b;q2=a,b,c"}，解析完毕之后的 {@link MultiValueMap}
      * 将包含以下键值对：
      * <pre>

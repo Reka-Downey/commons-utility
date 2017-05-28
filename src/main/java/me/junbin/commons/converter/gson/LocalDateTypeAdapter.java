@@ -1,10 +1,12 @@
 package me.junbin.commons.converter.gson;
 
-import com.google.gson.*;
-import me.junbin.commons.converter.custom.gson.GsonTypeAdapter;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
+import me.junbin.commons.converter.api.gson.GsonTypeAdapter;
 import me.junbin.commons.util.Args;
 
-import java.lang.reflect.Type;
+import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -14,7 +16,7 @@ import java.time.format.DateTimeFormatter;
  * @createDate : 2016-09-09 9:05
  * @description :
  */
-public class LocalDateTypeAdapter implements GsonTypeAdapter<LocalDate> {
+public class LocalDateTypeAdapter extends GsonTypeAdapter<LocalDate> {
 
     private final DateTimeFormatter formatter;
 
@@ -28,13 +30,21 @@ public class LocalDateTypeAdapter implements GsonTypeAdapter<LocalDate> {
     }
 
     @Override
-    public JsonElement serialize(LocalDate src, Type typeOfSrc, JsonSerializationContext context) {
-        return null == src ? null : new JsonPrimitive(formatter.format(src));
+    public void write(JsonWriter out, LocalDate value) throws IOException {
+        out.value(value == null ? null : formatter.format(value));
     }
 
     @Override
-    public LocalDate deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-        return null == json ? null : LocalDate.parse(json.getAsString(), formatter);
+    public LocalDate read(JsonReader in) throws IOException {
+        if (in.hasNext()) {
+            JsonToken jsonToken = in.peek();
+            if (jsonToken == JsonToken.NULL) {
+                in.nextNull();
+                return null;
+            }
+            return LocalDate.parse(in.nextString(), formatter);
+        }
+        return null;
     }
 
 }

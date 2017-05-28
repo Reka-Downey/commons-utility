@@ -67,6 +67,9 @@ public class KVTranslator {
 
     public int getAsInt(final String key) {
         Object obj = properties.get(key);
+        if (obj == null) {
+            throw new PropertyTranslateException(String.format("Property %s not found", key));
+        }
         try {
             return Integer.parseInt(obj.toString());
         } catch (NumberFormatException e) {
@@ -84,6 +87,9 @@ public class KVTranslator {
 
     public double getAsDouble(final String key) {
         Object obj = properties.get(key);
+        if (obj == null) {
+            throw new PropertyTranslateException(String.format("Property %s not found", key));
+        }
         try {
             return Double.parseDouble(obj.toString());
         } catch (NumberFormatException e) {
@@ -101,6 +107,9 @@ public class KVTranslator {
 
     public boolean getAsBoolean(final String key) {
         Object obj = properties.get(key);
+        if (obj == null) {
+            throw new PropertyTranslateException(String.format("Property %s not found", key));
+        }
         try {
             return Boolean.parseBoolean(obj.toString().trim());
         } catch (NullPointerException e) {

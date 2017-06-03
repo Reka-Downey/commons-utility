@@ -502,7 +502,15 @@ public final class ColorfulRender {
      * 插入新行
      */
     public ColorfulRender newLine() {
+        boolean flag = this.bg;
+        if (flag) { // 开启了背景色颜色，需要先关闭背景色渲染，换行后再开启
+            this.bg = false;
+            this.render("");
+        }
         this.ansi.newline();
+        if (flag) {
+            this.bg = true;
+        }
         return this;
     }
 

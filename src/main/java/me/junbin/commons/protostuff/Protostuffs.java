@@ -16,8 +16,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static me.junbin.commons.ansi.ColorfulPrinter.green;
-import static me.junbin.commons.ansi.ColorfulPrinter.red;
 import static me.junbin.commons.util.CollectionUtils.*;
 
 /**
@@ -29,7 +27,6 @@ import static me.junbin.commons.util.CollectionUtils.*;
  * 另外通过设置系统属性 {@link RuntimeEnv#USE_SUN_MISC_UNSAFE} 可以限制仅仅通过 {@link sun.misc.Unsafe} 来处理对象的字段（该方式在 JRE 下运行默认启动）；
  */
 public final class Protostuffs {
-
 
     static {
         System.getProperties().setProperty("protostuff.runtime.always_use_sun_reflection_factory", "true");
@@ -63,6 +60,7 @@ public final class Protostuffs {
     /**
      * 从缓存中获取指定类的 {@link Schema}，如果缓存中不存在该类对应的 {@link Schema}，那么直接
      * 通过运行环境获取该类的 {@link Schema} 并存入缓存中。
+     * 切记数组、抽象类和接口是没有 {@link Schema} 的，如果传入这三种类型将直接抛出 {@link RuntimeException}！
      *
      * @param clazz 需要获取 {@link Schema} 的类
      * @param <T>   泛型
@@ -74,7 +72,7 @@ public final class Protostuffs {
         if (schema == null) {
             schema = RuntimeSchema.getSchema(clazz);
             if (schema != null) {
-                green(String.format("缓存 {%s} 的 Schema.", clazz.getName()));
+                // green(String.format("缓存 {%s} 的 Schema.", clazz.getName()));
                 schemaCache.put(clazz, schema);
             }
         }
@@ -134,7 +132,7 @@ public final class Protostuffs {
                 Schema<Wrapper> schema = getSchema(wrapperClass);
                 ProtobufIOUtil.mergeFrom(data, wrapper, schema);
             } catch (Exception e) {
-                red("异常 -->" + e);
+                // red("异常 -->" + e);
                 throw new RuntimeException(e);
             }
             //noinspection unchecked
@@ -146,13 +144,12 @@ public final class Protostuffs {
                 Schema<T> schema = getSchema(notNullClass);
                 ProtobufIOUtil.mergeFrom(notNullData, obj, schema);
             } catch (Exception e) {
-                red("异常 -->" + e);
+                // red("异常 -->" + e);
                 throw new RuntimeException(e);
             }
             return obj;
         }
     }
-
 
     /**
      * 如果指定类型是常用容器类，那么返回该类对应的容器包装类

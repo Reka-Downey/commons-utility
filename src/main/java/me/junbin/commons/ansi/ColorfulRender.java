@@ -53,6 +53,10 @@ public final class ColorfulRender {
         this.ansi = Ansi.ansi().eraseScreen();
     }
 
+    public static ColorfulRender custom() {
+        return new ColorfulRender();
+    }
+
     public static ColorfulRender start() {
         return new ColorfulRender();
     }

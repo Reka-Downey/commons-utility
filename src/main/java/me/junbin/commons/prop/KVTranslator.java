@@ -45,6 +45,12 @@ public class KVTranslator {
         return new KVTranslator(properties);
     }
 
+    /**
+     * 解析 properties 文件流并生成 {@link KVTranslator}
+     *
+     * @param propertiesStream properties 文件流
+     * @return 属性解释器
+     */
     public static KVTranslator properties(final InputStream propertiesStream) throws IOException {
         Args.notNull(propertiesStream);
         Properties properties = new Properties();
@@ -112,7 +118,7 @@ public class KVTranslator {
         }
         try {
             return Boolean.parseBoolean(obj.toString().trim());
-        } catch (NullPointerException e) {
+        } catch (Exception e) {
             throw new PropertyTranslateException(String.format("The property %s is undefined!", key));
         }
     }

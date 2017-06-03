@@ -7,7 +7,7 @@ import java.util.*;
  * @author : Zhong Junbin
  * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
  * @createDate : 2017/1/27 23:53
- * @description :
+ * @description : 从 Spring 工具类提取而来
  */
 public abstract class ClassUtils {
 

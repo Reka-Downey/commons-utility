@@ -13,6 +13,7 @@ import java.util.Objects;
  * S 代表 饱和度（Saturation） -- 饱和度指色相中灰色分量所占的比例，从 0%(灰色) ~ 100%(完全饱和) 变化；
  * L 代表 亮度（Luminance） -- 亮度指颜色的相对明暗程度，从 0%(黑色) ~ 100%(白色) 变化；
  * alpha 代表 透明度，从 0.0(透明) ~ 1.0(不透明) 变化，也可以从 0(透明) ~ 255(不透明) 变化，存在一个 255 倍率。
+ * 从网络资源整合提炼而来
  */
 public final class HSL implements Serializable {
 

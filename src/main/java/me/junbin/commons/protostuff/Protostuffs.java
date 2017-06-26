@@ -5,6 +5,7 @@ import com.dyuproject.protostuff.ProtobufIOUtil;
 import com.dyuproject.protostuff.Schema;
 import com.dyuproject.protostuff.runtime.RuntimeEnv;
 import com.dyuproject.protostuff.runtime.RuntimeSchema;
+import com.google.gson.reflect.TypeToken;
 import me.junbin.commons.util.Args;
 import me.junbin.commons.wrapper.*;
 import org.springframework.objenesis.Objenesis;
@@ -25,6 +26,8 @@ import static me.junbin.commons.util.CollectionUtils.*;
  * @description : 通过 {@link System#getProperties()} 之后设置系统属性 {@link RuntimeEnv#ALWAYS_USE_SUN_REFLECTION_FACTORY}
  * 可以限制构造方法都只通过 {@link sun.reflect.ReflectionFactory} 来获取；具体可以参考 {@link RuntimeEnv}
  * 另外通过设置系统属性 {@link RuntimeEnv#USE_SUN_MISC_UNSAFE} 可以限制仅仅通过 {@link sun.misc.Unsafe} 来处理对象的字段（该方式在 JRE 下运行默认启动）；
+ * Protostuff 无法数组、抽象类、接口的 Schema，因此也无法实现序列化；虽然 Protostuff 可以获取枚举累的 Schema，但是
+ * 在（反）序列化时被处理成 null，因此也无法直接处理
  */
 public final class Protostuffs {
 
@@ -60,7 +63,7 @@ public final class Protostuffs {
     /**
      * 从缓存中获取指定类的 {@link Schema}，如果缓存中不存在该类对应的 {@link Schema}，那么直接
      * 通过运行环境获取该类的 {@link Schema} 并存入缓存中。
-     * 切记数组、抽象类和接口是没有 {@link Schema} 的，如果传入这三种类型将直接抛出 {@link RuntimeException}！
+     * 切记数组、抽象类和接口是没有 {@link Schema} 的，如果传入这三种类型将直接抛出 {@link RuntimeException}
      *
      * @param clazz 需要获取 {@link Schema} 的类
      * @param <T>   泛型
@@ -86,13 +89,13 @@ public final class Protostuffs {
      * @param <T> 泛型
      * @return 指定对象对应的 protostuff 序列化数组
      */
+    @SuppressWarnings("unchecked")
     public static <T> byte[] serialize(final T obj) {
         T notNullObj = Args.notNull(obj);
         /* 判断并处理容器类元素 */
         Wrapper wrapper = toWrapper(obj);
         LinkedBuffer buffer = LinkedBuffer.allocate(LinkedBuffer.DEFAULT_BUFFER_SIZE);
         if (wrapper != null) { // obj 是容器对象
-            @SuppressWarnings("unchecked")
             Class<Wrapper> wrapperClass = (Class<Wrapper>) wrapper.getClass();
             try {
                 Schema<Wrapper> wrapperSchema = getSchema(wrapperClass);
@@ -101,7 +104,6 @@ public final class Protostuffs {
                 buffer.clear();
             }
         } else { // obj 不是容器对象
-            @SuppressWarnings("unchecked")
             Class<T> clazz = (Class<T>) obj.getClass();
             try {
                 Schema<T> schema = getSchema(clazz);
@@ -110,6 +112,23 @@ public final class Protostuffs {
                 buffer.clear();
             }
         }
+    }
+
+    /**
+     * 使用 protostuff 将字节数组反序列为指定类型的对象
+     *
+     * @param data      字节数组
+     * @param typeToken 对象的泛型说明
+     * @param <T>       泛型
+     * @return 返回字节数组对应的指定类型的实例，如果发生了类型不兼容等问题将返回 {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T deserialize(final byte[] data, final TypeToken<T> typeToken) {
+        byte[] notNullData = Args.notNull(data);
+        TypeToken<T> notNullTypeToken = Args.notNull(typeToken);
+        Class<T> notNullClass = (Class<T>) notNullTypeToken.getRawType(); // 将 Class<? super T> 强转成 Class<T>
+        Class<Wrapper> wrapperClass = (Class<Wrapper>) toWrapperClass(notNullTypeToken.getRawType());
+        return deserialize(data, notNullData, notNullClass, wrapperClass);
     }
 
     /**
@@ -125,30 +144,7 @@ public final class Protostuffs {
         Class<T> notNullClass = Args.notNull(typeOfT);
         @SuppressWarnings("unchecked")
         Class<Wrapper> wrapperClass = (Class<Wrapper>) toWrapperClass(typeOfT);
-        if (wrapperClass != null) { // 该序列化字节数组是容器对象
-            Wrapper wrapper;
-            try {
-                wrapper = objenesis.newInstance(wrapperClass);
-                Schema<Wrapper> schema = getSchema(wrapperClass);
-                ProtobufIOUtil.mergeFrom(data, wrapper, schema);
-            } catch (Exception e) {
-                // red("异常 -->" + e);
-                throw new RuntimeException(e);
-            }
-            //noinspection unchecked
-            return (T) wrapper.getSource();
-        } else { // 该序列化字节数组是普通对象
-            T obj;
-            try {
-                obj = objenesis.newInstance(notNullClass);
-                Schema<T> schema = getSchema(notNullClass);
-                ProtobufIOUtil.mergeFrom(notNullData, obj, schema);
-            } catch (Exception e) {
-                // red("异常 -->" + e);
-                throw new RuntimeException(e);
-            }
-            return obj;
-        }
+        return deserialize(data, notNullData, notNullClass, wrapperClass);
     }
 
     /**
@@ -194,6 +190,23 @@ public final class Protostuffs {
             return new ArrayWrapper(source);
         }
         return null;
+    }
+
+    private static <T> T deserialize(byte[] data, byte[] notNullData, Class<T> notNullClass, Class<Wrapper> wrapperClass) {
+        if (wrapperClass != null) { // 该序列化字节数组是容器对象
+            Wrapper wrapper;
+            wrapper = objenesis.newInstance(wrapperClass);
+            Schema<Wrapper> schema = getSchema(wrapperClass);
+            ProtobufIOUtil.mergeFrom(data, wrapper, schema);
+            //noinspection unchecked
+            return (T) wrapper.getSource();
+        } else { // 该序列化字节数组是普通对象
+            T obj;
+            obj = objenesis.newInstance(notNullClass);
+            Schema<T> schema = getSchema(notNullClass);
+            ProtobufIOUtil.mergeFrom(notNullData, obj, schema);
+            return obj;
+        }
     }
 
 }

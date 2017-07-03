@@ -8,6 +8,7 @@ import java.io.Serializable;
  * @createDate : 2016/12/31 9:03
  * @description :
  */
+@FunctionalInterface
 public interface Wrapper<T> extends Serializable {
 
     T getSource();

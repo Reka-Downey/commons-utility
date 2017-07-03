@@ -1,63 +1,75 @@
 package me.junbin.commons.protostuff;
 
 import com.dyuproject.protostuff.LinkedBuffer;
-import com.dyuproject.protostuff.ProtobufIOUtil;
+import com.dyuproject.protostuff.ProtostuffIOUtil;
 import com.dyuproject.protostuff.Schema;
 import com.dyuproject.protostuff.runtime.RuntimeEnv;
 import com.dyuproject.protostuff.runtime.RuntimeSchema;
 import com.google.gson.reflect.TypeToken;
+import me.junbin.commons.protostuff.strategy.SimpleWrapStrategy;
+import me.junbin.commons.protostuff.strategy.WrapStrategy;
 import me.junbin.commons.util.Args;
-import me.junbin.commons.wrapper.*;
-import org.springframework.objenesis.Objenesis;
-import org.springframework.objenesis.ObjenesisStd;
+import me.junbin.commons.wrapper.ObjectWrapper;
+import org.objenesis.Objenesis;
+import org.objenesis.ObjenesisStd;
+import org.objenesis.instantiator.ObjectInstantiator;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import static me.junbin.commons.util.CollectionUtils.*;
-
 /**
  * @author : Zhong Junbin
- * @email : <a href="mailto:rekadowney@163.com">发送邮件</a>
+ * @email : <a href="mailto:rekadowney@gmail.com">发送邮件</a>
  * @createDate : 2017/1/26 21:40
  * @description : 通过 {@link System#getProperties()} 之后设置系统属性 {@link RuntimeEnv#ALWAYS_USE_SUN_REFLECTION_FACTORY}
  * 可以限制构造方法都只通过 {@link sun.reflect.ReflectionFactory} 来获取；具体可以参考 {@link RuntimeEnv}
  * 另外通过设置系统属性 {@link RuntimeEnv#USE_SUN_MISC_UNSAFE} 可以限制仅仅通过 {@link sun.misc.Unsafe} 来处理对象的字段（该方式在 JRE 下运行默认启动）；
- * Protostuff 无法数组、抽象类、接口的 Schema，因此也无法实现序列化；虽然 Protostuff 可以获取枚举累的 Schema，但是
- * 在（反）序列化时被处理成 null，因此也无法直接处理
+ * Protostuff 无法数组、抽象类、接口的 Schema，因此也无法实现序列化；虽然 Protostuff 可以获取枚举类的 Schema，但是
+ * 在（反）序列化时被处理成 null，因此也无法直接（反）序列化。
+ * ★★ 强制要求对 {@link String} 进行包装；
+ * ★★ 强制要求不对 {@link ObjectWrapper} 执行包装操作。
  */
-public final class Protostuffs {
+public abstract class Protostuffs {
 
     static {
         System.getProperties().setProperty("protostuff.runtime.always_use_sun_reflection_factory", "true");
     }
 
+    private static final int cacheSize = 256;
+    private static final int bufferSize = 4096;
+    private static WrapStrategy strategy = new SimpleWrapStrategy();
+    private static final Objenesis objenesis = new ObjenesisStd(true);
     /**
      * 缓存 {@link Class} 与其对应的 {@link Schema}
      */
-    private static final ConcurrentMap<Class<?>, Schema<?>> schemaCache = new ConcurrentHashMap<>();
-
+    private static final ConcurrentMap<Class<?>, Schema<?>> schemaCache = new ConcurrentHashMap<>(cacheSize);
     /**
-     * 用来反射生成对象
+     * 缓存 {@link Class} 与其对应的 {@link ObjectInstantiator}
      */
-    private static final Objenesis objenesis = new ObjenesisStd(true);
-
+    private static final ConcurrentMap<Class<?>, ObjectInstantiator<?>> instantiatorCache = new ConcurrentHashMap<>(cacheSize);
+    /**
+     * 缓存 {@link Class} 及其是否需要包装
+     */
+    private static final ConcurrentMap<Class<?>, Boolean> needWrappedCache = new ConcurrentHashMap<>(cacheSize);
 
     static {
-        schemaCache.put(String.class, RuntimeSchema.getSchema(String.class));
-        /*
-         * 由于容器类经常会被用到，因此先加载常用的容器类与其对应的包装类的 {@link Schema} 到缓存中；
-         * 这里之所以需要使用容器的包装类，是因为 Protostuff 并不支持直接（反）序列化容器对象
-         */
-        schemaCache.put(ListWrapper.class, RuntimeSchema.getSchema(ListWrapper.class));
-        schemaCache.put(SetWrapper.class, RuntimeSchema.getSchema(SetWrapper.class));
-        schemaCache.put(MapWrapper.class, RuntimeSchema.getSchema(MapWrapper.class));
-    }
-
-    private Protostuffs() {
+        //schemaCache.put(String.class, RuntimeSchema.getSchema(String.class));
+        schemaCache.put(ObjectWrapper.class, RuntimeSchema.getSchema(ObjectWrapper.class));
+        //instantiatorCache.put(String.class, objenesis.getInstantiatorOf(String.class));
+        instantiatorCache.put(ObjectWrapper.class, objenesis.getInstantiatorOf(ObjectWrapper.class));
+        needWrappedCache.put(String.class, Boolean.TRUE);
+        needWrappedCache.put(ObjectWrapper.class, Boolean.FALSE);
+        needWrappedCache.put(Collection.class, Boolean.TRUE);
+        needWrappedCache.put(List.class, Boolean.TRUE);
+        needWrappedCache.put(ArrayList.class, Boolean.TRUE);
+        needWrappedCache.put(LinkedList.class, Boolean.TRUE);
+        needWrappedCache.put(Set.class, Boolean.TRUE);
+        needWrappedCache.put(HashSet.class, Boolean.TRUE);
+        needWrappedCache.put(Map.class, Boolean.TRUE);
+        needWrappedCache.put(HashMap.class, Boolean.TRUE);
+        needWrappedCache.put(ConcurrentMap.class, Boolean.TRUE);
+        needWrappedCache.put(int[].class, Boolean.TRUE);
     }
 
     /**
@@ -83,6 +95,26 @@ public final class Protostuffs {
     }
 
     /**
+     * 从缓存中获取指定类的 {@link ObjectInstantiator}，如果缓存中不存在该类对应的 {@link ObjectInstantiator}，
+     * 那么直接新建该类的 {@link ObjectInstantiator} 并存入缓存中。
+     *
+     * @param clazz 需要获取 {@link ObjectInstantiator} 的类
+     * @param <T>   泛型
+     * @return 指定类对应的 {@link ObjectInstantiator}
+     */
+    public static <T> ObjectInstantiator<T> getInstantiator(final Class<T> clazz) {
+        @SuppressWarnings("unchecked")
+        ObjectInstantiator<T> instantiator = (ObjectInstantiator<T>) instantiatorCache.get(clazz);
+        if (instantiator == null) {
+            instantiator = objenesis.getInstantiatorOf(clazz);
+            if (instantiator != null) {
+                instantiatorCache.put(clazz, instantiator);
+            }
+        }
+        return instantiator;
+    }
+
+    /**
      * 使用 protostuff 将对象序列化为字节数组
      *
      * @param obj 任意对象
@@ -92,25 +124,44 @@ public final class Protostuffs {
     @SuppressWarnings("unchecked")
     public static <T> byte[] serialize(final T obj) {
         T notNullObj = Args.notNull(obj);
-        /* 判断并处理容器类元素 */
-        Wrapper wrapper = toWrapper(obj);
-        LinkedBuffer buffer = LinkedBuffer.allocate(LinkedBuffer.DEFAULT_BUFFER_SIZE);
-        if (wrapper != null) { // obj 是容器对象
-            Class<Wrapper> wrapperClass = (Class<Wrapper>) wrapper.getClass();
-            try {
-                Schema<Wrapper> wrapperSchema = getSchema(wrapperClass);
-                return ProtobufIOUtil.toByteArray(wrapper, wrapperSchema, buffer);
-            } finally {
-                buffer.clear();
+        Class clazz = notNullObj.getClass();
+        LinkedBuffer buffer = LinkedBuffer.allocate(bufferSize);
+        try {
+            if (needWrapped(clazz)) {
+                ObjectWrapper wrapper = new ObjectWrapper(notNullObj);
+                Schema<ObjectWrapper> schema = getSchema(ObjectWrapper.class);
+                return ProtostuffIOUtil.toByteArray(wrapper, schema, buffer);
+            } else {
+                Schema schema = getSchema(clazz);
+                return ProtostuffIOUtil.toByteArray(notNullObj, schema, buffer);
             }
-        } else { // obj 不是容器对象
-            Class<T> clazz = (Class<T>) obj.getClass();
-            try {
-                Schema<T> schema = getSchema(clazz);
-                return ProtobufIOUtil.toByteArray(notNullObj, schema, buffer);
-            } finally {
-                buffer.clear();
-            }
+        } finally {
+            buffer.clear();
+        }
+    }
+
+    /**
+     * 使用 protostuff 将字节数组反序列为指定类型的对象
+     *
+     * @param data    字节数组
+     * @param typeOfT 对象的类型
+     * @param <T>     泛型
+     * @return 返回字节数组对应的指定类型的实例，如果发生了类型不兼容等问题将抛出 {@link RuntimeException}
+     */
+    public static <T> T deserialize(byte[] data, Class<T> typeOfT) {
+        byte[] notNullData = Args.notNull(data);
+        Args.notNull(typeOfT);
+        if (needWrapped(typeOfT)) {
+            Schema<ObjectWrapper> schema = getSchema(ObjectWrapper.class);
+            ObjectWrapper wrapper = getInstantiator(ObjectWrapper.class).newInstance();
+            ProtostuffIOUtil.mergeFrom(notNullData, wrapper, schema);
+            //noinspection unchecked
+            return (T) wrapper.getSource();
+        } else {
+            Schema<T> schema = getSchema(typeOfT);
+            T object = getInstantiator(typeOfT).newInstance();
+            ProtostuffIOUtil.mergeFrom(notNullData, object, schema);
+            return object;
         }
     }
 
@@ -120,93 +171,55 @@ public final class Protostuffs {
      * @param data      字节数组
      * @param typeToken 对象的泛型说明
      * @param <T>       泛型
-     * @return 返回字节数组对应的指定类型的实例，如果发生了类型不兼容等问题将返回 {@code null}
+     * @return 返回字节数组对应的指定类型的实例，如果发生了类型不兼容等问题将抛出 {@link RuntimeException}
      */
-    @SuppressWarnings("unchecked")
-    public static <T> T deserialize(final byte[] data, final TypeToken<T> typeToken) {
-        byte[] notNullData = Args.notNull(data);
-        TypeToken<T> notNullTypeToken = Args.notNull(typeToken);
-        Class<T> notNullClass = (Class<T>) notNullTypeToken.getRawType(); // 将 Class<? super T> 强转成 Class<T>
-        Class<Wrapper> wrapperClass = (Class<Wrapper>) toWrapperClass(notNullTypeToken.getRawType());
-        return deserialize(data, notNullData, notNullClass, wrapperClass);
-    }
-
-    /**
-     * 使用 protostuff 将字节数组反序列为指定类型的对象
-     *
-     * @param data    字节数组
-     * @param typeOfT 对象的类型
-     * @param <T>     泛型
-     * @return 返回字节数组对应的指定类型的实例，如果发生了类型不兼容等问题将返回 {@code null}
-     */
-    public static <T> T deserialize(final byte[] data, final Class<T> typeOfT) {
-        byte[] notNullData = Args.notNull(data);
-        Class<T> notNullClass = Args.notNull(typeOfT);
+    public static <T> T deserialize(byte[] data, TypeToken<T> typeToken) {
         @SuppressWarnings("unchecked")
-        Class<Wrapper> wrapperClass = (Class<Wrapper>) toWrapperClass(typeOfT);
-        return deserialize(data, notNullData, notNullClass, wrapperClass);
+        Class<T> rawType = (Class<T>) Args.notNull(typeToken).getRawType();
+        return deserialize(data, rawType);
     }
 
     /**
-     * 如果指定类型是常用容器类，那么返回该类对应的容器包装类
+     * 决定指定类型是否需要使用包装器
      *
-     * @param typeOfTarget 任意类
-     * @return 如果指定类型是常用容器类，那么返回该类对应的容器包装类，否则返回 {@code null}
+     * @param clazz 任意类
+     * @return 是否使用包装器由 {@link #strategy} 包装策略决定
      */
-    private static Class<? extends Wrapper> toWrapperClass(Class<?> typeOfTarget) {
-        if (isMap(typeOfTarget)) {
-            return MapWrapper.class;
+    private static boolean needWrapped(Class<?> clazz) {
+        Boolean flag = needWrappedCache.get(clazz);
+        if (flag == null) {
+            flag = strategy.shouldUsingWrapper(clazz);
+            needWrappedCache.put(clazz, flag);
         }
-        if (isList(typeOfTarget)) {
-            return ListWrapper.class;
-        }
-        if (isSet(typeOfTarget)) {
-            return SetWrapper.class;
-        }
-        if (isArray(typeOfTarget)) {
-            return ArrayWrapper.class;
-        }
-        return null;
+        return flag;
     }
 
     /**
-     * 如果对象是常用的容器类，那么将该类封装到对应的包装类中并返回该包装类
+     * 设置新的包装策略，此时会清空类包装缓存
      *
-     * @param source 任意对象
-     * @return 如果对象是容器对象，那么返回该对象的容器包装类，否则返回 {@code null}
+     * @param wrapStrategy 包装策略
      */
-    private static Wrapper toWrapper(Object source) {
-        Class<?> clazz = source.getClass();
-        if (isMap(clazz)) {
-            return new MapWrapper((Map) source);
-        }
-        if (isList(clazz)) {
-            return new ListWrapper((List) source);
-        }
-        if (isSet(clazz)) {
-            return new SetWrapper((Set) source);
-        }
-        if (isArray(clazz)) {
-            return new ArrayWrapper(source);
-        }
-        return null;
+    public static void setStrategy(WrapStrategy wrapStrategy) {
+        strategy = Args.notNull(wrapStrategy);
+        needWrappedCache.clear();
     }
 
-    private static <T> T deserialize(byte[] data, byte[] notNullData, Class<T> notNullClass, Class<Wrapper> wrapperClass) {
-        if (wrapperClass != null) { // 该序列化字节数组是容器对象
-            Wrapper wrapper;
-            wrapper = objenesis.newInstance(wrapperClass);
-            Schema<Wrapper> schema = getSchema(wrapperClass);
-            ProtobufIOUtil.mergeFrom(data, wrapper, schema);
-            //noinspection unchecked
-            return (T) wrapper.getSource();
-        } else { // 该序列化字节数组是普通对象
-            T obj;
-            obj = objenesis.newInstance(notNullClass);
-            Schema<T> schema = getSchema(notNullClass);
-            ProtobufIOUtil.mergeFrom(notNullData, obj, schema);
-            return obj;
-        }
+    public static void clearSchemaCache() {
+        schemaCache.clear();
+        //schemaCache.put(String.class, RuntimeSchema.getSchema(String.class));
+        schemaCache.put(ObjectWrapper.class, RuntimeSchema.getSchema(ObjectWrapper.class));
+    }
+
+    public static void clearInstantiatorCache() {
+        instantiatorCache.clear();
+        //instantiatorCache.put(String.class, objenesis.getInstantiatorOf(String.class));
+        instantiatorCache.put(ObjectWrapper.class, objenesis.getInstantiatorOf(ObjectWrapper.class));
+    }
+
+    public static void clearNeedWrappedCache() {
+        needWrappedCache.clear();
+        needWrappedCache.put(String.class, Boolean.TRUE);
+        needWrappedCache.put(ObjectWrapper.class, Boolean.FALSE);
     }
 
 }
